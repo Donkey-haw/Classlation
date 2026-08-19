@@ -6,19 +6,42 @@ import { emitWithAck, socket } from "./socket";
 
 const STUDENT_SESSION_KEY = "classroom-liar-student";
 
+const TEAM_IDENTITIES = [
+  { symbol: "⚡", name: "번개", tone: "blue" },
+  { symbol: "✦", name: "별", tone: "violet" },
+  { symbol: "●", name: "태양", tone: "orange" },
+  { symbol: "◆", name: "보석", tone: "green" },
+  { symbol: "≈", name: "파도", tone: "cyan" },
+  { symbol: "▲", name: "산", tone: "coral" },
+  { symbol: "☾", name: "달", tone: "indigo" },
+  { symbol: "✥", name: "나침반", tone: "mint" },
+] as const;
+
 interface StudentSession {
   roomCode: string;
   playerId: string;
   resumeToken: string;
 }
 
+function getTeamIdentity(teamName?: string) {
+  const teamNumber = Number.parseInt(teamName ?? "", 10);
+  return TEAM_IDENTITIES[(Number.isNaN(teamNumber) ? 1 : teamNumber) - 1] ?? TEAM_IDENTITIES[0]!;
+}
+
 function TeamSetupCard({ snapshot }: { snapshot: StudentSnapshot }) {
+  const teamName = snapshot.teamName ?? "팀";
+  const identity = getTeamIdentity(snapshot.teamName);
+
   return (
     <section className="student-card student-card--center team-setup-card">
       <span className="eyebrow">게임 시작 전 자리 이동</span>
       <p className="team-label">내 팀은</p>
-      <div className="team-number">{snapshot.teamName}</div>
-      <h1>{snapshot.teamName}입니다</h1>
+      <div className={`team-number team-number--${identity.tone}`} aria-label={`${identity.name} ${teamName}`}>
+        <span aria-hidden="true">{identity.symbol}</span>
+        <strong>{teamName}</strong>
+        <small>{identity.name} 팀</small>
+      </div>
+      <h1>{identity.name} {teamName}입니다</h1>
       <p>아래 팀원들을 찾아 같은 자리에 모이세요.</p>
       <div className="student-team-members" aria-label="같은 팀 학생">
         {snapshot.members.map((member) => (
@@ -42,10 +65,55 @@ function DiscussionCard({ onStart, busy }: { onStart: () => void; busy: boolean 
       <ol className="conversation-rules">
         <li>한 사람씩 돌아가며 주제어에 관한 단서를 말해요.</li>
         <li>서로 질문하고 답하며 라이어를 찾아요.</li>
-        <li>충분히 이야기했다면 팀원 한 명만 아래 버튼을 눌러요.</li>
       </ol>
-      <button className="button button--primary button--large" onClick={onStart} disabled={busy}>팀 투표 시작</button>
-      <p className="privacy-note">팀원 모두의 화면이 동시에 투표 화면으로 바뀝니다.</p>
+      <div className="discussion-vote-gate">
+        <strong>대화가 끝났나요?</strong>
+        <p>팀원 한 명만 눌러도 모두의 화면이 바뀝니다.</p>
+        <button className="button button--outline button--large" onClick={onStart} disabled={busy}>팀 투표 시작</button>
+      </div>
+    </section>
+  );
+}
+
+function RoleCard({ snapshot, busy, onConfirm }: { snapshot: StudentSnapshot; busy: boolean; onConfirm: () => void }) {
+  const isLiar = snapshot.role === "liar";
+
+  return (
+    <section className={`student-card role-card ${isLiar ? "role-card--liar" : "role-card--member"}`}>
+      <span className="role-privacy"><span aria-hidden="true">◉</span> 나만 보는 비밀 카드</span>
+      <div className="role-symbol" aria-hidden="true">{isLiar ? "?" : "✓"}</div>
+      <p className="role-label">당신은</p>
+      <h1>{isLiar ? "라이어입니다" : "팀원입니다"}</h1>
+      <div className="secret-box">
+        <small>{isLiar ? "주제 범주" : "비밀 주제어"}</small>
+        <strong>{isLiar ? snapshot.category : snapshot.topic}</strong>
+        {snapshot.explanation && <p>{snapshot.explanation}</p>}
+      </div>
+      <button className="button button--primary button--large" onClick={onConfirm} disabled={busy || snapshot.confirmed}>확인했어요</button>
+      <p className="privacy-note">다른 사람에게 화면을 보이지 마세요. 모두 확인하면 대화 안내로 넘어갑니다.</p>
+    </section>
+  );
+}
+
+function ResultCard({ snapshot }: { snapshot: StudentSnapshot }) {
+  const isLiarWin = snapshot.winner === "liar";
+  const isDetectiveWin = snapshot.winner === "detectives";
+  const title = isLiarWin ? "라이어 탈출!" : isDetectiveWin ? "수사팀 성공!" : "정답 공개!";
+  const symbolClass = isLiarWin ? "liar" : isDetectiveWin ? "detectives" : "answer";
+  const symbol = isLiarWin ? "!" : isDetectiveWin ? "✓" : "정답";
+  const showAccused = Boolean(snapshot.accusedName && snapshot.accusedName !== snapshot.liarName);
+
+  return (
+    <section className="student-card student-card--center result-card">
+      <span className="eyebrow">라운드 결과</span>
+      <div className={`result-symbol result-symbol--${symbolClass}`}>{symbol}</div>
+      <h1>{title}</h1>
+      <p>{snapshot.winner ? "팀원들과 결과를 확인하고 다음 라운드를 기다리세요." : "방금 말한 추측과 실제 주제어를 팀원들과 비교하세요."}</p>
+      <div className="result-grid">
+        <span className={showAccused ? undefined : "result-item--solo"}><small>진짜 라이어</small><strong>{snapshot.liarName}</strong></span>
+        {showAccused && <span><small>지목한 사람</small><strong>{snapshot.accusedName}</strong></span>}
+        <span className="result-item--topic"><small>실제 주제어</small><strong>{snapshot.topic}</strong></span>
+      </div>
     </section>
   );
 }
@@ -174,7 +242,7 @@ export function StudentApp() {
       <main className="student-shell student-shell--join">
         <header className="student-topbar"><Brand compact /><ConnectionBadge connected={connected} /></header>
         <section className="join-card">
-          <span className="eyebrow">교실 라이어</span>
+          <span className="eyebrow">클래스 라이어</span>
           <h1>게임방에<br />들어오세요</h1>
           <p>선생님 화면의 방 코드와 사용할 별명을 입력하세요.</p>
           <Notice message={error} onClose={() => setError("")} />
@@ -194,20 +262,7 @@ export function StudentApp() {
   } else if (snapshot.phase === "teamSetup") {
     content = <TeamSetupCard snapshot={snapshot} />;
   } else if (snapshot.phase === "secret") {
-    content = (
-      <section className={`student-card role-card ${snapshot.role === "liar" ? "role-card--liar" : ""}`}>
-        <div className="role-symbol">{snapshot.role === "liar" ? "?" : "✓"}</div>
-        <p className="role-label">당신은</p>
-        <h1>{snapshot.role === "liar" ? "라이어입니다" : "팀원입니다"}</h1>
-        <div className="secret-box">
-          <small>{snapshot.role === "liar" ? "주제 범주" : "비밀 주제어"}</small>
-          <strong>{snapshot.role === "liar" ? snapshot.category : snapshot.topic}</strong>
-          {snapshot.explanation && <p>{snapshot.explanation}</p>}
-        </div>
-        <button className="button button--primary button--large" onClick={() => action("student:confirm")} disabled={busy || snapshot.confirmed}>확인했어요</button>
-        <p className="privacy-note">다른 사람에게 화면을 보이지 마세요. 모두 확인하면 대화 안내로 넘어갑니다.</p>
-      </section>
-    );
+    content = <RoleCard snapshot={snapshot} busy={busy} onConfirm={() => action("student:confirm")} />;
   } else if (snapshot.phase === "discussion") {
     content = <DiscussionCard onStart={() => action("student:start-vote")} busy={busy} />;
   } else if (snapshot.phase === "vote") {
@@ -221,8 +276,11 @@ export function StudentApp() {
         <h1>다시 기기를 내려놓으세요</h1>
         <p>동점 후보를 중심으로 짧게 더 이야기하세요.</p>
         <div className="candidate-strip">{candidateNames.map((member) => <span key={member.id}>{member.name}</span>)}</div>
-        <button className="button button--primary button--large" onClick={() => action("student:start-runoff-vote")} disabled={busy}>팀 결선 투표 시작</button>
-        <p className="privacy-note">충분히 이야기했다면 팀원 한 명만 누르세요.</p>
+        <div className="discussion-vote-gate">
+          <strong>짧은 대화가 끝났나요?</strong>
+          <p>팀원 한 명만 눌러도 모두의 화면이 바뀝니다.</p>
+          <button className="button button--outline button--large" onClick={() => action("student:start-runoff-vote")} disabled={busy}>팀 결선 투표 시작</button>
+        </div>
       </section>
     );
   } else if (snapshot.phase === "runoffVote") {
@@ -238,21 +296,7 @@ export function StudentApp() {
       </section>
     ) : <Waiting title="라이어의 추측을 들어 주세요" detail="라이어가 주제어를 말하면 곧 정답이 공개됩니다." />;
   } else if (snapshot.phase === "reveal") {
-    const title = snapshot.winner === "liar" ? "라이어 탈출!" : snapshot.winner === "detectives" ? "수사팀 성공!" : "정답을 확인하세요";
-    const symbolClass = snapshot.winner === "liar" ? "liar" : snapshot.winner === "detectives" ? "detectives" : "answer";
-    content = (
-      <section className="student-card student-card--center">
-        <span className="eyebrow">라운드 결과</span>
-        <div className={`result-symbol result-symbol--${symbolClass}`}>{snapshot.winner === "liar" ? "!" : "✓"}</div>
-        <h1>{title}</h1>
-        <p>{snapshot.winner ? "팀원들과 결과를 확인하고 다음 라운드를 기다리세요." : "방금 말한 추측과 실제 주제어를 팀원들과 비교하세요."}</p>
-        <div className="result-grid">
-          {snapshot.accusedName && <span><small>지목된 사람</small><strong>{snapshot.accusedName}</strong></span>}
-          <span><small>라이어</small><strong>{snapshot.liarName}</strong></span>
-          <span><small>실제 주제어</small><strong>{snapshot.topic}</strong></span>
-        </div>
-      </section>
-    );
+    content = <ResultCard snapshot={snapshot} />;
   } else {
     content = <Waiting title="다음 안내를 기다려 주세요" detail="선생님 화면에서 현재 상태를 확인하고 있습니다." />;
   }

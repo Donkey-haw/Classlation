@@ -41,6 +41,7 @@ try {
   await teacher.getByText("5명", { exact: true }).waitFor();
   await teacher.getByRole("button", { name: "입장 마감·팀 배정" }).click();
   await Promise.all(studentRecords.map(({ page }) => page.getByRole("heading", { name: /팀입니다/ }).waitFor()));
+  await studentRecords[0].page.getByLabel(/1팀/).waitFor();
   await teacher.getByRole("heading", { name: "팀끼리 모여 앉으세요" }).waitFor();
   await teacher.screenshot({ path: join(outputDir, "teacher-team-setup.png"), fullPage: true });
   await studentRecords[0].page.screenshot({ path: join(outputDir, "student-team-assignment.png"), fullPage: true });
@@ -72,6 +73,11 @@ try {
   }
   if (liarIndex < 0 || !topic) throw new Error("역할 또는 주제어를 확인하지 못했습니다.");
 
+  const memberIndex = studentRecords.findIndex((_, index) => index !== liarIndex);
+  await studentRecords[liarIndex].page.waitForTimeout(500);
+  await studentRecords[liarIndex].page.screenshot({ path: join(outputDir, "student-role-liar.png"), fullPage: true });
+  await studentRecords[memberIndex].page.screenshot({ path: join(outputDir, "student-role-member.png"), fullPage: true });
+
   const reconnectIndex = studentRecords.findIndex((_, index) => index !== liarIndex);
   await studentRecords[reconnectIndex].page.reload({ waitUntil: "networkidle" });
   await studentRecords[reconnectIndex].page.getByRole("heading", { name: "팀원입니다" }).waitFor();
@@ -84,6 +90,9 @@ try {
   for (const { page } of studentRecords) {
     if (await page.getByRole("button", { name: "발언을 마쳤어요" }).count()) throw new Error("개인 발언 완료 버튼이 남아 있습니다.");
     if (await page.getByRole("button", { name: "질문과 답변을 마쳤어요" }).count()) throw new Error("개인 질문 완료 버튼이 남아 있습니다.");
+    if (await page.getByRole("button", { name: "팀 투표 시작" }).evaluate((button) => button.classList.contains("button--primary"))) {
+      throw new Error("대면 대화 화면의 투표 버튼이 여전히 주 행동처럼 강조되어 있습니다.");
+    }
   }
   await studentRecords[0].page.screenshot({ path: join(outputDir, "student-face-to-face-discussion.png"), fullPage: true });
   await teacher.screenshot({ path: join(outputDir, "teacher-discussion.png"), fullPage: true });
@@ -102,7 +111,9 @@ try {
   await liarPage.getByRole("heading", { name: /주제어를 말로/ }).waitFor();
   if (await liarPage.getByLabel("최종 정답").count()) throw new Error("온라인 정답 입력란이 남아 있습니다.");
   await liarPage.getByRole("button", { name: "말했어요·정답 공개" }).click();
-  await liarPage.getByRole("heading", { name: "정답을 확인하세요" }).waitFor();
+  await liarPage.getByRole("heading", { name: "정답 공개!" }).waitFor();
+  if (await liarPage.locator(".result-symbol").textContent() !== "정답") throw new Error("중립 결과 화면이 성공 체크 표시로 보입니다.");
+  if (await liarPage.getByText("지목한 사람", { exact: true }).count()) throw new Error("라이어와 지목된 사람이 같을 때 중복 정보가 표시됩니다.");
   await liarPage.screenshot({ path: join(outputDir, "student-result.png"), fullPage: true });
   await teacher.getByText("결과 공개").waitFor();
   await teacher.screenshot({ path: join(outputDir, "teacher-result.png"), fullPage: true });
