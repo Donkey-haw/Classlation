@@ -9,9 +9,13 @@ import type { ZodType } from "zod";
 import type { Ack, StudentSnapshot, TeacherSnapshot } from "../shared/types";
 import { ClassroomLiarStore, GameError } from "./gameStore";
 import {
+  approveRejoinSchema,
   emptySchema,
+  movePlayerSchema,
   parsePayload,
+  rejectRejoinSchema,
   studentJoinSchema,
+  studentRejoinRequestSchema,
   studentResumeSchema,
   targetSchema,
   teacherCreateSchema,
@@ -153,6 +157,20 @@ export function createClassroomLiarServer() {
       },
     );
 
+    socket.on(
+      "student:request-rejoin",
+      (payload: unknown, ack: (result: Ack<{ requestId: string }>) => void) => {
+        try {
+          const { roomCode, name } = parsePayload(studentRejoinRequestSchema, payload);
+          const request = store.requestRejoin(roomCode, name, socket.id);
+          ack({ ok: true, data: request });
+          emitRoom(roomCode);
+        } catch (error) {
+          ack({ ok: false, error: errorMessage(error) });
+        }
+      },
+    );
+
     function teacherAction<T>(
       event: string,
       schema: ZodType<T>,
@@ -194,11 +212,62 @@ export function createClassroomLiarServer() {
     teacherAction("teacher:assign-teams", emptySchema, (session) =>
       store.assignTeams(session.roomCode, session.teacherToken),
     );
+    teacherAction("teacher:reshuffle-teams", emptySchema, (session) =>
+      store.reshuffleTeams(session.roomCode, session.teacherToken),
+    );
+    teacherAction("teacher:add-team", emptySchema, (session) =>
+      store.addTeam(session.roomCode, session.teacherToken),
+    );
+    teacherAction("teacher:remove-team", teamSchema, (session, payload) =>
+      store.removeTeam(session.roomCode, session.teacherToken, payload.teamId),
+    );
+    teacherAction("teacher:move-player", movePlayerSchema, (session, payload) =>
+      store.movePlayer(session.roomCode, session.teacherToken, payload.playerId, payload.teamId),
+    );
     teacherAction("teacher:start", emptySchema, (session) => store.startGame(session.roomCode, session.teacherToken));
     teacherAction("teacher:advance-discussion", teamSchema, (session, payload) =>
       store.advanceTeamDiscussion(session.roomCode, session.teacherToken, payload.teamId),
     );
     teacherAction("teacher:next-round", emptySchema, (session) => store.nextRound(session.roomCode, session.teacherToken));
+
+    socket.on("teacher:approve-rejoin", (rawPayload: unknown, ack: (result: Ack) => void = () => undefined) => {
+      try {
+        const session = sessions.get(socket.id);
+        if (!session || session.role !== "teacher") throw new GameError("교사 연결을 다시 확인해 주세요.");
+        const { requestId, playerId } = parsePayload(approveRejoinSchema, rawPayload);
+        const approved = store.approveRejoin(session.roomCode, session.teacherToken, requestId, playerId);
+        sessions.set(approved.socketId, {
+          role: "student",
+          roomCode: session.roomCode,
+          playerId: approved.playerId,
+          resumeToken: approved.resumeToken,
+        });
+        io.to(approved.socketId).emit("student:rejoin-approved", {
+          roomCode: session.roomCode,
+          playerId: approved.playerId,
+          resumeToken: approved.resumeToken,
+          snapshot: approved.snapshot,
+        });
+        ack({ ok: true });
+        emitRoom(session.roomCode);
+      } catch (error) {
+        ack({ ok: false, error: errorMessage(error) });
+      }
+    });
+
+    socket.on("teacher:reject-rejoin", (rawPayload: unknown, ack: (result: Ack) => void = () => undefined) => {
+      try {
+        const session = sessions.get(socket.id);
+        if (!session || session.role !== "teacher") throw new GameError("교사 연결을 다시 확인해 주세요.");
+        const { requestId } = parsePayload(rejectRejoinSchema, rawPayload);
+        const rejected = store.rejectRejoin(session.roomCode, session.teacherToken, requestId);
+        io.to(rejected.socketId).emit("student:rejoin-rejected", "선생님이 재입장 요청을 확인하지 못했습니다. 이름을 확인해 다시 요청하세요.");
+        ack({ ok: true });
+        emitRoom(session.roomCode);
+      } catch (error) {
+        ack({ ok: false, error: errorMessage(error) });
+      }
+    });
 
     socket.on("teacher:end", (rawPayload: unknown, ack: (result: Ack) => void = () => undefined) => {
       try {

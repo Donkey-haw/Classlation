@@ -59,6 +59,7 @@ input:focus, textarea:focus, select:focus { border-color: var(--blue); box-shado
 .button--outline:hover:not(:disabled) { border-color: var(--blue); background: var(--pale-blue); }
 .button--small { min-height: 34px; padding: 7px 10px; font-size: 12px; }
 .form-help { margin: 12px 0 0; color: var(--muted); font-size: 12px; text-align: center; line-height: 1.6; }
+.rejoin-button { margin-top: 10px; }
 .notice { display: flex; align-items: center; justify-content: space-between; gap: 12px; max-width: 100%; margin: 14px 0; padding: 11px 13px; border-left: 3px solid var(--coral); background: #fff1f2; color: #9f2430; font-size: 13px; font-weight: 700; }
 .notice__close { border: 0; background: transparent; color: inherit; font-size: 20px; }
 
@@ -76,6 +77,12 @@ input:focus, textarea:focus, select:focus { border-color: var(--blue); box-shado
 .participant-list > span { padding: 7px 9px; background: var(--pale-blue); font-size: 12px; font-weight: 700; }
 .participant-list > span.offline { opacity: .45; text-decoration: line-through; }
 .empty { width: 100%; color: var(--muted); font-size: 12px; text-align: center; }
+.rejoin-panel { display: grid; gap: 10px; margin-top: 26px; }
+.rejoin-request { display: grid; gap: 7px; padding: 12px; border: 1px solid #f1bdc3; background: #fff5f6; }
+.rejoin-request > strong { font-size: 14px; }
+.rejoin-request > span { color: var(--muted); font-size: 11px; line-height: 1.5; }
+.rejoin-request select { padding: 9px 10px; font-size: 12px; }
+.rejoin-request__actions { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
 .progress-panel { padding: 48px 0 0 48px; }
 .progress-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; }
 .progress-header h1 { margin-bottom: 0; }
@@ -94,6 +101,18 @@ input:focus, textarea:focus, select:focus { border-color: var(--blue); box-shado
 .team-members span.offline { opacity: .45; text-decoration: line-through; }
 .team-card__meta { min-height: 26px; color: var(--muted); font-size: 11px; font-weight: 600; }
 .team-card .button { margin-top: 13px; }
+.team-edit-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin-top: 22px; padding: 15px 17px; border: 1px solid var(--border); background: #fff; }
+.team-edit-toolbar > div:first-child { display: grid; gap: 4px; }
+.team-edit-toolbar > div:first-child strong { font-size: 14px; }
+.team-edit-toolbar > div:first-child span { color: var(--muted); font-size: 12px; }
+.team-edit-toolbar > div:last-child { display: flex; gap: 8px; }
+.team-edit-toolbar .button { white-space: nowrap; }
+.team-validation { margin-top: 10px; padding: 10px 12px; border-left: 3px solid var(--coral); background: #fff5f6; color: #9f2430; font-size: 12px; font-weight: 800; }
+.team-editor-members { display: grid; gap: 7px; min-height: 52px; margin: 18px 0 14px; }
+.team-editor-member { display: grid; grid-template-columns: minmax(0, 1fr) 105px; align-items: center; gap: 8px; padding: 7px 8px 7px 11px; background: var(--pale-blue); }
+.team-editor-member > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; font-weight: 800; }
+.team-editor-member > span.offline { opacity: .5; text-decoration: line-through; }
+.team-editor-member select { padding: 7px 8px; border-radius: 6px; font-size: 12px; }
 .teacher-instruction { display: flex; align-items: center; gap: 12px 22px; margin-top: 28px; padding: 15px 17px; border-left: 4px solid var(--blue); background: var(--pale-blue); }
 .teacher-instruction strong { color: var(--blue-dark); font-size: 13px; }
 .teacher-instruction span { color: var(--muted); font-size: 12px; }
@@ -129,6 +148,8 @@ input:focus, textarea:focus, select:focus { border-color: var(--blue); box-shado
 .team-number--coral { --team-color: #c93d4c; --team-pale: #fff0f1; }
 .team-number--indigo { --team-color: #3d4bb4; --team-pale: #eef0ff; }
 .team-number--mint { --team-color: #147461; --team-pale: #e7f8f3; }
+.team-number--gold { --team-color: #966b00; --team-pale: #fff8dc; }
+.team-number--rose { --team-color: #a63d74; --team-pale: #fff0f7; }
 .student-team-members { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; width: 100%; margin: 4px 0 18px; }
 .student-team-members span { padding: 9px 11px; border: 1px solid var(--border); background: #fff; font-size: 13px; font-weight: 800; }
 .student-team-members span.is-me { border-color: var(--blue); background: var(--pale-blue); color: var(--blue); }
@@ -203,6 +224,8 @@ input:focus, textarea:focus, select:focus { border-color: var(--blue); box-shado
   .room-code { font-size: 41px; }
   .qr-wrap svg { width: 145px; height: 145px; }
   .teacher-instruction { align-items: flex-start; flex-direction: column; }
+  .team-edit-toolbar { align-items: stretch; flex-direction: column; }
+  .team-edit-toolbar > div:last-child { display: grid; grid-template-columns: 1fr 1fr; }
 }
 
 @media (max-width: 390px) {

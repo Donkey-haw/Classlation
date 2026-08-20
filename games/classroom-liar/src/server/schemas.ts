@@ -10,16 +10,21 @@ export const teacherCreateSchema = z.object({
     word: z.string().trim().min(1).max(40),
     explanation: z.string().trim().max(120).optional(),
   }).strict()).min(2).max(100),
-  preferredTeamSize: z.number().int().min(4).max(6),
+  preferredTeamSize: z.number().int().min(3).max(32),
   roundCount: z.number().int().min(1).max(10),
+  teamMode: z.enum(["fixed", "rotate"]),
 }).strict();
 
 export const teacherResumeSchema = z.object({ roomCode, teacherToken: token }).strict();
 export const studentJoinSchema = z.object({ roomCode, name: z.string().trim().min(1).max(12) }).strict();
 export const studentResumeSchema = z.object({ roomCode, playerId: token, resumeToken: token }).strict();
+export const studentRejoinRequestSchema = z.object({ roomCode, name: z.string().trim().min(1).max(12) }).strict();
 export const emptySchema = z.object({}).strict();
 export const teamSchema = z.object({ teamId: z.string().regex(/^team-\d+$/) }).strict();
 export const targetSchema = z.object({ targetId: token }).strict();
+export const movePlayerSchema = z.object({ playerId: token, teamId: z.string().regex(/^team-\d+$/) }).strict();
+export const approveRejoinSchema = z.object({ requestId: token, playerId: token }).strict();
+export const rejectRejoinSchema = z.object({ requestId: token }).strict();
 export function parsePayload<T>(schema: z.ZodType<T>, payload: unknown): T {
   const result = schema.safeParse(payload ?? {});
   if (result.success) return result.data;

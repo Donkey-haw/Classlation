@@ -15,12 +15,28 @@ const TEAM_IDENTITIES = [
   { symbol: "▲", name: "산", tone: "coral" },
   { symbol: "☾", name: "달", tone: "indigo" },
   { symbol: "✥", name: "나침반", tone: "mint" },
+  { symbol: "■", name: "네모", tone: "gold" },
+  { symbol: "✿", name: "꽃", tone: "rose" },
 ] as const;
 
 interface StudentSession {
   roomCode: string;
   playerId: string;
   resumeToken: string;
+}
+
+interface RejoinApproved extends StudentSession {
+  snapshot: StudentSnapshot;
+}
+
+function saveStudentSession(session: StudentSession) {
+  localStorage.setItem(STUDENT_SESSION_KEY, JSON.stringify(session));
+  sessionStorage.removeItem(STUDENT_SESSION_KEY);
+}
+
+function clearStudentSession() {
+  localStorage.removeItem(STUDENT_SESSION_KEY);
+  sessionStorage.removeItem(STUDENT_SESSION_KEY);
 }
 
 function getTeamIdentity(teamName?: string) {
@@ -31,10 +47,11 @@ function getTeamIdentity(teamName?: string) {
 function TeamSetupCard({ snapshot }: { snapshot: StudentSnapshot }) {
   const teamName = snapshot.teamName ?? "팀";
   const identity = getTeamIdentity(snapshot.teamName);
+  const isNextRound = snapshot.roundNumber > 1;
 
   return (
     <section className="student-card student-card--center team-setup-card">
-      <span className="eyebrow">게임 시작 전 자리 이동</span>
+      <span className="eyebrow">{isNextRound ? `${snapshot.roundNumber}라운드 새 팀` : "게임 시작 전 자리 이동"}</span>
       <p className="team-label">내 팀은</p>
       <div className={`team-number team-number--${identity.tone}`} aria-label={`${identity.name} ${teamName}`}>
         <span aria-hidden="true">{identity.symbol}</span>
@@ -50,7 +67,7 @@ function TeamSetupCard({ snapshot }: { snapshot: StudentSnapshot }) {
           </span>
         ))}
       </div>
-      <p className="privacy-note">누를 버튼은 없습니다. 선생님이 모두 모인 것을 확인하면 게임이 시작됩니다.</p>
+      <p className="privacy-note">누를 버튼은 없습니다. 선생님이 모두 모인 것을 확인하면 {isNextRound ? "다음 라운드가" : "게임이"} 시작됩니다.</p>
     </section>
   );
 }
@@ -161,7 +178,7 @@ function StudentHeader({ snapshot, connected }: { snapshot: StudentSnapshot; con
         <Brand compact />
         <div className="student-identity"><span>{snapshot.playerName}</span><ConnectionBadge connected={connected} /></div>
       </header>
-      {snapshot.status === "playing" && (
+      {(snapshot.status === "playing" || (snapshot.status === "teamSetup" && snapshot.roundNumber > 0)) && (
         <div className="student-meta"><span>{snapshot.teamName}</span><span>{snapshot.roundNumber} / {snapshot.roundCount} 라운드</span></div>
       )}
     </>
@@ -177,34 +194,55 @@ export function StudentApp() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [connected, setConnected] = useState(socket.connected);
+  const [canRequestRejoin, setCanRequestRejoin] = useState(false);
+  const [rejoinPending, setRejoinPending] = useState(false);
 
   useEffect(() => {
     const connect = () => setConnected(true);
     const disconnect = () => setConnected(false);
     const update = (value: StudentSnapshot) => setSnapshot(value);
+    const rejoinApproved = (value: RejoinApproved) => {
+      const nextSession = { roomCode: value.roomCode, playerId: value.playerId, resumeToken: value.resumeToken };
+      saveStudentSession(nextSession);
+      setSession(nextSession);
+      setSnapshot(value.snapshot);
+      setRejoinPending(false);
+      setCanRequestRejoin(false);
+      setError("");
+    };
+    const rejoinRejected = (message: string) => {
+      setRejoinPending(false);
+      setCanRequestRejoin(true);
+      setError(message);
+    };
     socket.on("connect", connect);
     socket.on("disconnect", disconnect);
     socket.on("student:snapshot", update);
+    socket.on("student:rejoin-approved", rejoinApproved);
+    socket.on("student:rejoin-rejected", rejoinRejected);
     setConnected(socket.connected);
     return () => {
       socket.off("connect", connect);
       socket.off("disconnect", disconnect);
       socket.off("student:snapshot", update);
+      socket.off("student:rejoin-approved", rejoinApproved);
+      socket.off("student:rejoin-rejected", rejoinRejected);
     };
   }, []);
 
   useEffect(() => {
-    const raw = sessionStorage.getItem(STUDENT_SESSION_KEY);
+    const raw = localStorage.getItem(STUDENT_SESSION_KEY) ?? sessionStorage.getItem(STUDENT_SESSION_KEY);
     if (!raw || !connected) return;
     try {
       const saved = JSON.parse(raw) as StudentSession;
+      if (roomFromUrl && saved.roomCode !== roomFromUrl) return;
       emitWithAck<StudentSnapshot>("student:resume", saved)
-        .then((value) => { setSession(saved); setSnapshot(value); })
-        .catch(() => sessionStorage.removeItem(STUDENT_SESSION_KEY));
+        .then((value) => { saveStudentSession(saved); setSession(saved); setSnapshot(value); })
+        .catch(() => clearStudentSession());
     } catch {
-      sessionStorage.removeItem(STUDENT_SESSION_KEY);
+      clearStudentSession();
     }
-  }, [connected]);
+  }, [connected, roomFromUrl]);
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
@@ -224,12 +262,29 @@ export function StudentApp() {
   }
 
   async function join() {
-    await run(async () => {
+    setBusy(true);
+    setError("");
+    setCanRequestRejoin(false);
+    try {
       const joined = await emitWithAck<{ playerId: string; resumeToken: string; snapshot: StudentSnapshot }>("student:join", { roomCode, name });
       const nextSession = { roomCode, playerId: joined.playerId, resumeToken: joined.resumeToken };
-      sessionStorage.setItem(STUDENT_SESSION_KEY, JSON.stringify(nextSession));
+      saveStudentSession(nextSession);
       setSession(nextSession);
       setSnapshot(joined.snapshot);
+    } catch (caught) {
+      const message = caught instanceof Error ? caught.message : "요청을 처리하지 못했습니다.";
+      setError(message);
+      setCanRequestRejoin(message.includes("입장이 마감된 방입니다"));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function requestRejoin() {
+    await run(async () => {
+      await emitWithAck<{ requestId: string }>("student:request-rejoin", { roomCode, name });
+      setRejoinPending(true);
+      setCanRequestRejoin(false);
     });
   }
 
@@ -238,6 +293,14 @@ export function StudentApp() {
   }
 
   if (!session || !snapshot) {
+    if (rejoinPending) {
+      return (
+        <main className="student-shell student-shell--join">
+          <header className="student-topbar"><Brand compact /><ConnectionBadge connected={connected} /></header>
+          <Waiting title="재입장 요청을 보냈어요" detail="선생님이 기존 참가자와 확인하면 원래 팀과 진행 단계로 돌아갑니다." />
+        </main>
+      );
+    }
     return (
       <main className="student-shell student-shell--join">
         <header className="student-topbar"><Brand compact /><ConnectionBadge connected={connected} /></header>
@@ -249,6 +312,7 @@ export function StudentApp() {
           <label>방 코드<input value={roomCode} onChange={(event) => setRoomCode(event.target.value.replace(/\D/g, "").slice(0, 6))} inputMode="numeric" autoComplete="one-time-code" /></label>
           <label>별명<input value={name} onChange={(event) => setName(event.target.value)} maxLength={12} autoComplete="off" /></label>
           <button className="button button--primary button--large" type="button" onClick={join} disabled={busy || roomCode.length !== 6 || !name.trim()}>입장하기</button>
+          {canRequestRejoin && <button className="button button--outline button--large rejoin-button" type="button" onClick={requestRejoin} disabled={busy}>기존 참가자로 재입장 요청</button>}
         </section>
       </main>
     );

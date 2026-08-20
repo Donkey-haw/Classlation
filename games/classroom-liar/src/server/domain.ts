@@ -10,15 +10,13 @@ export function shuffle<T>(values: readonly T[], random: RandomSource = Math.ran
 }
 
 export function createTeamSizes(playerCount: number, preferredSize: number): number[] {
-  if (!Number.isInteger(playerCount) || playerCount < 4 || playerCount > 32) {
-    throw new Error("참가자는 4명에서 32명이어야 합니다.");
+  if (!Number.isInteger(playerCount) || playerCount < 3 || playerCount > 32) {
+    throw new Error("참가자는 3명에서 32명이어야 합니다.");
   }
-  if (playerCount <= 7) return [playerCount];
-
-  const minTeams = Math.ceil(playerCount / 6);
-  const maxTeams = Math.floor(playerCount / 4);
-  const idealTeams = Math.round(playerCount / Math.min(6, Math.max(4, preferredSize)));
-  const teamCount = Math.min(maxTeams, Math.max(minTeams, idealTeams));
+  const normalizedPreferredSize = Math.min(32, Math.max(3, Math.round(preferredSize)));
+  const maxTeams = Math.max(1, Math.floor(playerCount / 3));
+  const idealTeams = Math.max(1, Math.round(playerCount / normalizedPreferredSize));
+  const teamCount = Math.min(maxTeams, idealTeams);
   const baseSize = Math.floor(playerCount / teamCount);
   const largerTeamCount = playerCount % teamCount;
 

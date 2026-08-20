@@ -11,6 +11,7 @@ export type TeamPhase =
   | "ended";
 
 export type RoundWinner = "liar" | "detectives";
+export type TeamMode = "fixed" | "rotate";
 
 export interface PublicMember {
   id: string;
@@ -33,14 +34,22 @@ export interface TeamProgress {
   phaseStartedAt: number;
 }
 
+export interface RejoinRequest {
+  id: string;
+  name: string;
+  requestedAt: number;
+}
+
 export interface TeacherSnapshot {
   roomCode: string;
   status: "lobby" | "teamSetup" | "playing" | "ended";
   category: string;
   roundNumber: number;
   roundCount: number;
+  teamMode: TeamMode;
   participants: PublicMember[];
   teams: TeamProgress[];
+  rejoinRequests: RejoinRequest[];
 }
 
 export interface StudentSnapshot {

@@ -1,16 +1,17 @@
 import { describe, expect, it } from "vitest";
 import { ClassroomLiarStore } from "../src/server/gameStore";
 
-function makeLobby(playerCount = 5, roundCount = 2) {
+function makeLobby(playerCount = 5, roundCount = 2, teamMode: "fixed" | "rotate" = "fixed", preferredTeamSize = 5) {
   const store = new ClassroomLiarStore();
   const room = store.createRoom({
     category: "음식",
     topics: [{ word: "김치찌개" }, { word: "떡볶이" }, { word: "비빔밥" }],
-    preferredTeamSize: 5,
+    preferredTeamSize,
     roundCount,
+    teamMode,
   });
   const players = Array.from({ length: playerCount }, (_, index) =>
-    store.joinStudent(room.roomCode, `학생${index + 1}`),
+    store.joinStudent(room.roomCode, `학생${index + 1}`, `socket-${index + 1}`),
   );
   return { store, room, players };
 }
@@ -24,6 +25,22 @@ function makeGame(playerCount = 5, roundCount = 2) {
 
 function confirmAll(store: ClassroomLiarStore, roomCode: string, players: ReturnType<typeof makeGame>["players"]) {
   for (const player of players) store.confirmSecret(roomCode, player.playerId);
+}
+
+function revealAllTeams(store: ClassroomLiarStore, roomCode: string, players: ReturnType<typeof makeGame>["players"]) {
+  confirmAll(store, roomCode, players);
+  const snapshots = players.map((player) => store.getStudentSnapshot(roomCode, player.playerId));
+  const teamIds = [...new Set(snapshots.map((snapshot) => snapshot.teamId))];
+  for (const teamId of teamIds) {
+    const teamPlayers = players.filter((player) => store.getStudentSnapshot(roomCode, player.playerId).teamId === teamId);
+    const liar = teamPlayers.find((player) => store.getStudentSnapshot(roomCode, player.playerId).role === "liar")!;
+    const citizen = teamPlayers.find((player) => player.playerId !== liar.playerId)!;
+    store.startTeamVote(roomCode, teamPlayers[0].playerId);
+    for (const player of teamPlayers) {
+      store.vote(roomCode, player.playerId, player.playerId === liar.playerId ? citizen.playerId : liar.playerId);
+    }
+    store.revealAnswer(roomCode, liar.playerId);
+  }
 }
 
 describe("ClassroomLiarStore", () => {
@@ -98,6 +115,47 @@ describe("ClassroomLiarStore", () => {
     expect(() => store.resumeStudent(room.roomCode, player.playerId, "wrong-token")).toThrow();
   });
 
+  it("lets the teacher approve a disconnected student's rejoin request and rotates the token", () => {
+    const { store, room, players } = makeGame();
+    const player = players[0];
+    const before = store.getStudentSnapshot(room.roomCode, player.playerId);
+    store.disconnect("socket-1");
+    const request = store.requestRejoin(room.roomCode, "학생1", "replacement-socket");
+    expect(store.getTeacherSnapshot(room.roomCode, room.teacherToken).rejoinRequests).toHaveLength(1);
+
+    const approved = store.approveRejoin(room.roomCode, room.teacherToken, request.requestId, player.playerId);
+    expect(approved.playerId).toBe(player.playerId);
+    expect(approved.resumeToken).not.toBe(player.resumeToken);
+    expect(approved.snapshot.teamId).toBe(before.teamId);
+    expect(approved.snapshot.role).toBe(before.role);
+    expect(() => store.resumeStudent(room.roomCode, player.playerId, player.resumeToken)).toThrow();
+    expect(store.getTeacherSnapshot(room.roomCode, room.teacherToken).rejoinRequests).toHaveLength(0);
+  });
+
+  it("allows team editing before a round and blocks teams smaller than three", () => {
+    const { store, room, players } = makeLobby(10);
+    store.assignTeams(room.roomCode, room.teacherToken);
+    store.addTeam(room.roomCode, room.teacherToken);
+    const addedTeam = store.getTeacherSnapshot(room.roomCode, room.teacherToken).teams[2];
+    expect(addedTeam.members).toHaveLength(0);
+    expect(() => store.startGame(room.roomCode, room.teacherToken)).toThrow("3명 이상");
+
+    for (const player of players.slice(0, 3)) {
+      store.movePlayer(room.roomCode, room.teacherToken, player.playerId, addedTeam.id);
+    }
+    store.reshuffleTeams(room.roomCode, room.teacherToken);
+    expect(store.getTeacherSnapshot(room.roomCode, room.teacherToken).teams).toHaveLength(3);
+    store.startGame(room.roomCode, room.teacherToken);
+    expect(store.getTeacherSnapshot(room.roomCode, room.teacherToken).teams.map((team) => team.members.length).sort()).toEqual([3, 3, 4]);
+  });
+
+  it("supports a team larger than six", () => {
+    const { store, room } = makeLobby(10, 1, "fixed", 10);
+    store.assignTeams(room.roomCode, room.teacherToken);
+    expect(store.getTeacherSnapshot(room.roomCode, room.teacherToken).teams[0].members).toHaveLength(10);
+    store.startGame(room.roomCode, room.teacherToken);
+  });
+
   it("runs one runoff and lets the liar escape when the runoff ties again", () => {
     const { store, room, players } = makeGame(4, 1);
     confirmAll(store, room.roomCode, players);
@@ -134,6 +192,23 @@ describe("ClassroomLiarStore", () => {
     store.nextRound(room.roomCode, room.teacherToken);
     const secondLiar = players.find((player) => store.getStudentSnapshot(room.roomCode, player.playerId).role === "liar")!;
     expect(secondLiar.playerId).not.toBe(firstLiar.playerId);
+  });
+
+  it("returns to team setup before the next round when team rotation is enabled", () => {
+    const { store, room, players } = makeLobby(10, 2, "rotate");
+    store.assignTeams(room.roomCode, room.teacherToken);
+    store.startGame(room.roomCode, room.teacherToken);
+    revealAllTeams(store, room.roomCode, players);
+
+    store.nextRound(room.roomCode, room.teacherToken);
+    const teacher = store.getTeacherSnapshot(room.roomCode, room.teacherToken);
+    expect(teacher.status).toBe("teamSetup");
+    expect(teacher.roundNumber).toBe(2);
+    expect(teacher.teamMode).toBe("rotate");
+    expect(players.every((player) => store.getStudentSnapshot(room.roomCode, player.playerId).phase === "teamSetup")).toBe(true);
+
+    store.startGame(room.roomCode, room.teacherToken);
+    expect(store.getStudentSnapshot(room.roomCode, players[0].playerId).phase).toBe("secret");
   });
 
   it("does not expose role, topic, or votes on the teacher progress board", () => {

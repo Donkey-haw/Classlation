@@ -11,6 +11,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:e2e": "node tests/e2e-flow.mjs",
+    "test:e2e:resilient": "node tests/e2e-resilient-teams.mjs",
     "start": "tsx src/server/index.ts"
   },
   "dependencies": {

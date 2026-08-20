@@ -8,6 +8,7 @@ describe("socket payload validation", () => {
       topics: [{ word: "광합성" }, { word: "증발" }],
       preferredTeamSize: 5,
       roundCount: 3,
+      teamMode: "fixed",
     });
     expect(parsed.topics).toHaveLength(2);
   });
