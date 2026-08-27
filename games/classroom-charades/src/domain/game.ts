@@ -1,16 +1,28 @@
-export type Topic = { id: string; word: string; emoji: string; hint: string };
+export type TopicSource = "recommended" | "custom";
+export type Topic = { id: string; word: string; emoji: string; hint: string; category: string; source: TopicSource };
+export type TopicCategory = { id: string; name: string; emoji: string; description: string; topics: Topic[] };
 export type Pair = [Topic, Topic];
 
-export function parseTopicLines(input: string): { topics: Topic[]; errors: number[] } {
+export function parseTopicLines(input: string, category = "직접 입력"): { topics: Topic[]; errors: number[] } {
   const topics: Topic[] = [];
   const errors: number[] = [];
   input.split(/\r?\n/).forEach((line, index) => {
     if (!line.trim()) return;
     const [word = "", emoji = "🎭", hint = ""] = line.split("|").map((part) => part.trim());
     if (!word) { errors.push(index + 1); return; }
-    topics.push({ id: `${index + 1}-${word}`, word, emoji: emoji || "🎭", hint });
+    topics.push({ id: `custom-${index + 1}-${word}`, word, emoji: emoji || "🎭", hint, category, source: "custom" });
   });
   return { topics, errors };
+}
+
+export function deduplicateTopics(topics: Topic[]): Topic[] {
+  const words = new Set<string>();
+  return topics.filter((topic) => {
+    const key = topic.word.trim().toLocaleLowerCase("ko-KR");
+    if (!key || words.has(key)) return false;
+    words.add(key);
+    return true;
+  });
 }
 
 export function serializeTopics(topics: Topic[]): string {

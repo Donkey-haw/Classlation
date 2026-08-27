@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { DEFAULT_TOPICS } from "../content/defaultTopics";
-import { drawPair, parseTopicLines, redrawPair, serializeTopics, type Pair, type Topic } from "../domain/game";
+import { drawPair, redrawPair, type Pair, type Topic } from "../domain/game";
+import { TopicPicker } from "./TopicPicker";
 import { useFullscreenShortcut } from "./useFullscreen";
 
 type Phase = "initial" | "drawn" | "playing" | "empty";
@@ -48,8 +49,7 @@ export function App() {
   const [expired, setExpired] = useState(false);
   const [history, setHistory] = useState<History[]>([]);
   const [soundEnabled, setSoundEnabled] = useState(true);
-  const [editorOpen, setEditorOpen] = useState(false);
-  const [topicText, setTopicText] = useState(() => serializeTopics(DEFAULT_TOPICS));
+  const [pickerOpen, setPickerOpen] = useState(false);
   const [notice, setNotice] = useState("");
 
   const advanceSeconds = useCallback((seconds: number) => {
@@ -120,21 +120,19 @@ export function App() {
     setHistory([]);
   };
 
-  const applyTopicEditor = () => {
-    const parsed = parseTopicLines(topicText);
-    if (parsed.errors.length || parsed.topics.length < 2) {
-      setNotice(parsed.errors.length ? `${parsed.errors.join(", ")}번째 줄을 확인해 주세요.` : "주제는 두 개 이상 필요해요.");
-      return;
-    }
-    resetGame(parsed.topics);
-    setEditorOpen(false);
-    setNotice("주제 목록을 적용하고 게임 기록을 초기화했어요.");
+  const applyTopics = (nextTopics: Topic[]) => {
+    resetGame(nextTopics);
+    setPickerOpen(false);
+    setNotice(`${nextTopics.length}개 주제로 새 게임을 준비했어요.`);
   };
+
+  const selectedCategories = useMemo(() => Array.from(new Set(topics.map((topic) => topic.category))), [topics]);
 
   const textState = useMemo(() => ({
     app: "classroom-charades", phase, topicCount: topics.length, remainingTopics: pool.length,
-    pairVisible: phase === "drawn", scores, results, remainingSeconds: timerDuration === 0 ? null : remainingSeconds, expired,
-  }), [phase, topics.length, pool.length, scores, results, timerDuration, remainingSeconds, expired]);
+    categories: selectedCategories, pairVisible: phase === "drawn", scores, results,
+    remainingSeconds: timerDuration === 0 ? null : remainingSeconds, expired,
+  }), [phase, topics.length, pool.length, selectedCategories, scores, results, timerDuration, remainingSeconds, expired]);
 
   useEffect(() => {
     window.render_game_to_text = () => JSON.stringify(textState);
@@ -147,7 +145,7 @@ export function App() {
   const bothRecorded = results[0] !== null && results[1] !== null;
 
   return <div className="app-shell">
-    <header className="topbar"><div className="brand"><span>🎭</span><div>몸으로 말해요<small>두 팀 동시 진행 · 교실 TV 화면</small></div></div><div className="header-actions"><button className="button ghost" onClick={() => setSoundEnabled((value) => !value)}>{soundEnabled ? "🔊 소리 켬" : "🔇 음소거"}</button><button className="button ghost" onClick={() => document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen()}>전체 화면 <kbd>F</kbd></button><button className="button ghost" onClick={() => setEditorOpen(true)}>주제 편집</button><button className="button danger-ghost" onClick={() => { if (window.confirm("점수와 기록을 모두 지우고 새로 시작할까요?")) resetGame(); }}>초기화</button></div></header>
+    <header className="topbar"><div className="brand"><span>🎭</span><div>몸으로 말해요<small>두 팀 동시 진행 · 교실 TV 화면</small></div></div><div className="header-actions"><button className="button ghost" onClick={() => setSoundEnabled((value) => !value)}>{soundEnabled ? "🔊 소리 켬" : "🔇 음소거"}</button><button className="button ghost" onClick={() => document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen()}>전체 화면 <kbd>F</kbd></button><button className="button ghost" data-testid="open-topic-picker" onClick={() => setPickerOpen(true)}>주제 선택</button><button className="button danger-ghost" onClick={() => { if (window.confirm("점수와 기록을 모두 지우고 새로 시작할까요?")) resetGame(); }}>초기화</button></div></header>
 
     <main className="game-layout">
       {notice && <button className="notice" onClick={() => setNotice("")}>{notice}<span>닫기</span></button>}
@@ -157,11 +155,11 @@ export function App() {
           <strong data-testid={`score-${index + 1}`}>{scores[index]}</strong><span>점</span>
           <div><button onClick={() => adjustScore(index as 0 | 1, -1)}>−</button><button onClick={() => adjustScore(index as 0 | 1, 1)}>+</button></div>
         </article>)}
-        <div className="round-meta"><label>제한 시간<select value={timerDuration} onChange={(event) => setTimerDuration(Number(event.target.value))} disabled={phase === "playing"}><option value={30}>30초</option><option value={60}>60초</option><option value={90}>90초</option><option value={0}>제한 없음</option></select></label><span>남은 주제 <strong>{pool.length}</strong>개</span></div>
+        <div className="round-meta"><label>제한 시간<select value={timerDuration} onChange={(event) => setTimerDuration(Number(event.target.value))} disabled={phase === "playing"}><option value={30}>30초</option><option value={60}>60초</option><option value={90}>90초</option><option value={0}>제한 없음</option></select></label><span>남은 주제 <strong>{pool.length}</strong>개</span><span className="category-summary" title={selectedCategories.join(", ")}>{selectedCategories.join(" · ")}</span></div>
       </section>
 
       <section className="stage" data-testid={`phase-${phase}`}>
-        {phase === "initial" && <div className="empty-state"><span className="stage-icon">🎲</span><h1>두 팀의 주제를 뽑아 주세요</h1><p>두 주제가 화면에 동시에 공개됩니다. 각 팀은 자기 주제를 확인해요.</p></div>}
+        {phase === "initial" && <div className="empty-state"><span className="stage-icon">🎲</span><h1>두 팀의 주제를 뽑아 주세요</h1><p>두 주제가 화면에 동시에 공개됩니다. 각 팀은 자기 주제를 확인해요.</p><div className="selected-summary"><strong>선택한 주제 {topics.length}개</strong><span>{selectedCategories.join(" · ")}</span></div></div>}
 
         {phase === "drawn" && pair && <div className="drawn-state"><div className="instruction"><span>준비</span><strong>두 팀이 각자의 주제를 확인하세요</strong></div><div className="topic-grid">{pair.map((topic, index) => <article className={`topic-card team-${index + 1}`} data-testid={`drawn-topic-${index + 1}`} key={topic.id}><small>{teamNames[index]}</small><span>{topic.emoji}</span><h2>{topic.word}</h2>{topic.hint && <p>힌트 · {topic.hint}</p>}</article>)}</div><p className="simultaneous-note">상대 팀 주제가 보여도 괜찮아요. 두 팀은 서로 다른 주제로 동시에 진행합니다.</p></div>}
 
@@ -171,7 +169,7 @@ export function App() {
       </section>
 
       <section className="primary-actions">
-        {phase === "initial" && <button className="button primary giant" data-testid="draw" onClick={choosePair}>두 팀 주제 뽑기</button>}
+        {phase === "initial" && <><button className="button secondary giant" data-testid="change-topics" onClick={() => setPickerOpen(true)}>주제 바꾸기</button><button className="button primary giant" data-testid="draw" onClick={choosePair}>두 팀 주제 뽑기</button></>}
         {phase === "drawn" && <><button className="button secondary giant" onClick={choosePair}>다시 뽑기</button><button className="button primary giant" data-testid="start-round" onClick={startRound}>동시에 시작</button></>}
         {phase === "playing" && bothRecorded && <button className="button primary giant" data-testid="finish-round" onClick={finishRound}>이번 라운드 마치기</button>}
       </section>
@@ -179,6 +177,6 @@ export function App() {
       <section className="history"><div><h2>진행 기록</h2><p>팀 이름을 바꾸면 이후 기록부터 새 이름이 사용돼요.</p></div><div className="history-list">{history.length === 0 ? <span className="history-empty">아직 기록이 없어요.</span> : history.map((item) => <span className={item.result} key={item.id}>{item.emoji} {item.topic} · {item.team} {item.result === "correct" ? "⭕" : "✕"}</span>)}</div></section>
     </main>
 
-    {editorOpen && <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label="주제 편집"><section className="modal"><div className="modal-heading"><div><span className="eyebrow">주제 편집</span><h2>한 줄에 주제 하나를 입력하세요</h2><p><code>주제 | 이모지 | 몸동작 힌트</code> 형식이며, 주제만 입력해도 됩니다.</p></div><button aria-label="닫기" onClick={() => setEditorOpen(false)}>×</button></div><textarea value={topicText} onChange={(event) => setTopicText(event.target.value)} spellCheck={false} />{notice && <p className="editor-error">{notice}</p>}<div className="modal-actions"><button className="button secondary" onClick={() => { setTopicText(serializeTopics(DEFAULT_TOPICS)); setNotice(""); }}>기본 30개 복원</button><span>{parseTopicLines(topicText).topics.length}개 주제</span><button className="button primary" onClick={applyTopicEditor}>적용하고 새로 시작</button></div></section></div>}
+    {pickerOpen && <TopicPicker initialTopics={topics} onApply={applyTopics} onClose={() => setPickerOpen(false)} />}
   </div>;
 }
