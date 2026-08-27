@@ -5,7 +5,9 @@ const CHOSUNG = ["ㄱ", "ㄲ", "ㄴ", "ㄷ", "ㄸ", "ㄹ", "ㅁ", "ㅂ", "ㅃ", 
 export function getChosung(text: string): string {
   return Array.from(text).map((character) => {
     const code = character.charCodeAt(0) - 44032;
-    return code >= 0 && code <= 11171 ? CHOSUNG[Math.floor(code / 588)] : character;
+    if (code >= 0 && code <= 11171) return CHOSUNG[Math.floor(code / 588)];
+    if (/\s/u.test(character)) return character;
+    return "•";
   }).join("");
 }
 

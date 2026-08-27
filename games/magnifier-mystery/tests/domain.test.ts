@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 import { createCrop, getChosung, moveItem, validateImageFile } from "../src/domain/game";
 
 describe("magnifier mystery domain", () => {
-  it("extracts Korean initial consonants while preserving other characters", () => {
-    expect(getChosung("축구공 2")).toBe("ㅊㄱㄱ 2");
+  it("extracts Korean initial consonants without revealing other answer characters", () => {
+    expect(getChosung("축구공 2")).toBe("ㅊㄱㄱ •");
+    expect(getChosung("Apple 2호점")).toBe("••••• •ㅎㅈ");
+    expect(getChosung("A-1")).toBe("•••");
   });
 
   it("creates a crop inside the source image", () => {

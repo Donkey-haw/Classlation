@@ -21,7 +21,7 @@ try {
   const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
   await page.goto(`http://127.0.0.1:${port}`);
   await page.getByTestId("image-0").setInputFiles({ name: "ball.svg", mimeType: "image/svg+xml", buffer: Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600"><rect width="800" height="600" fill="blue"/><circle cx="400" cy="300" r="150" fill="white"/></svg>') });
-  await page.getByTestId("answer-0").fill("축구공");
+  await page.getByTestId("answer-0").fill("Apple 2호점");
   await page.getByTestId("start-game").click();
   await page.getByTestId("game-screen").waitFor();
   const lensBox = await page.locator("canvas").boundingBox();
@@ -30,6 +30,10 @@ try {
   if (process.env.QA_SCREENSHOT) await page.screenshot({ path: process.env.QA_SCREENSHOT });
   await page.getByText("초성 힌트", { exact: true }).last().click();
   await page.getByTestId("chosung").waitFor();
+  const hintText = await page.getByTestId("chosung").innerText();
+  assert.match(hintText, /••••• •ㅎㅈ/);
+  assert.doesNotMatch(hintText, /Apple|2/);
+  if (process.env.QA_HINT_SCREENSHOT) await page.screenshot({ path: process.env.QA_HINT_SCREENSHOT });
   await page.getByTestId("reveal").click();
   await page.getByTestId("revealed").waitFor();
   await page.getByTestId("next-question").click();
