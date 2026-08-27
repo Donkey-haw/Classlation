@@ -15,13 +15,12 @@ export function createCrop(
   ratio: number,
   random: () => number = Math.random,
 ): Crop {
-  const width = Math.max(20, Math.floor(imageWidth * ratio));
-  const height = Math.max(20, Math.floor(imageHeight * ratio));
+  const size = Math.max(20, Math.floor(Math.min(imageWidth, imageHeight) * ratio));
   return {
-    x: Math.floor(random() * Math.max(1, imageWidth - width)),
-    y: Math.floor(random() * Math.max(1, imageHeight - height)),
-    width,
-    height,
+    x: Math.floor(random() * Math.max(1, imageWidth - size)),
+    y: Math.floor(random() * Math.max(1, imageHeight - size)),
+    width: size,
+    height: size,
   };
 }
 

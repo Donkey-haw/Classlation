@@ -40,7 +40,7 @@ p { color: #59667b; }
 .progress { height: 9px; background: #e2e7ef; border-radius: 99px; overflow: hidden; }
 .progress span { display: block; height: 100%; background: #2856d7; }
 .mystery-stage { min-height: min(65vh, 690px); border: 1px solid #dce3ed; border-radius: 22px; background: #f7f9fc; padding: 18px; display: grid; place-items: center; position: relative; overflow: hidden; }
-.mystery-stage canvas { width: min(100%, 900px); max-height: 60vh; aspect-ratio: 900/620; object-fit: cover; border-radius: 50%; border: 9px solid #2856d7; background: #172033; box-shadow: 0 18px 45px rgba(32, 62, 136, .2); }
+.mystery-stage canvas { width: min(100%, 60vh, 680px); height: auto; aspect-ratio: 1; object-fit: cover; border-radius: 50%; border: 9px solid #2856d7; background: #172033; box-shadow: 0 18px 45px rgba(32, 62, 136, .2); }
 .chosung { position: absolute; z-index: 2; top: 28px; background: #fff; border: 2px solid #7652c6; border-radius: 14px; padding: 10px 22px; font-size: clamp(1.8rem, 5vw, 3.3rem); font-weight: 900; letter-spacing: .25em; box-shadow: 0 9px 25px rgba(43, 30, 78, .14); }
 .chosung small { display: block; color: #7652c6; font-size: .65rem; letter-spacing: .08em; text-align: center; }
 .reveal { width: min(100%, 920px); height: min(61vh, 650px); position: relative; border-radius: 18px; overflow: hidden; background: #172033; }

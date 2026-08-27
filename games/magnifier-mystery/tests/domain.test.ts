@@ -7,7 +7,14 @@ describe("magnifier mystery domain", () => {
   });
 
   it("creates a crop inside the source image", () => {
-    expect(createCrop(1000, 800, 0.18, () => 0.5)).toEqual({ x: 410, y: 328, width: 180, height: 144 });
+    expect(createCrop(1000, 800, 0.18, () => 0.5)).toEqual({ x: 428, y: 328, width: 144, height: 144 });
+  });
+
+  it("keeps the crop square so the enlarged image is not distorted", () => {
+    const crop = createCrop(1600, 900, 0.28, () => 0.25);
+    expect(crop.width).toBe(crop.height);
+    expect(crop.x + crop.width).toBeLessThanOrEqual(1600);
+    expect(crop.y + crop.height).toBeLessThanOrEqual(900);
   });
 
   it("moves questions without mutating the source", () => {

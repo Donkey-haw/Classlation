@@ -24,6 +24,10 @@ try {
   await page.getByTestId("answer-0").fill("축구공");
   await page.getByTestId("start-game").click();
   await page.getByTestId("game-screen").waitFor();
+  const lensBox = await page.locator("canvas").boundingBox();
+  assert.ok(lensBox, "magnifier canvas should be visible");
+  assert.ok(Math.abs(lensBox.width - lensBox.height) < 1, `magnifier should be circular, received ${lensBox.width}x${lensBox.height}`);
+  if (process.env.QA_SCREENSHOT) await page.screenshot({ path: process.env.QA_SCREENSHOT });
   await page.getByText("초성 힌트", { exact: true }).last().click();
   await page.getByTestId("chosung").waitFor();
   await page.getByTestId("reveal").click();

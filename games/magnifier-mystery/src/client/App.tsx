@@ -115,8 +115,8 @@ export function App() {
       const canvas = canvasRef.current;
       const context = canvas?.getContext("2d");
       if (!canvas || !context) return;
-      canvas.width = 900;
-      canvas.height = 620;
+      canvas.width = 800;
+      canvas.height = 800;
       context.imageSmoothingEnabled = true;
       context.imageSmoothingQuality = "high";
       context.drawImage(image, nextCrop.x, nextCrop.y, nextCrop.width, nextCrop.height, 0, 0, canvas.width, canvas.height);
