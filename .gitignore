@@ -9,4 +9,5 @@ output/
 !.env.example
 *.log
 .classlation-*.pid
+.classlation-active-app
 .DS_Store
