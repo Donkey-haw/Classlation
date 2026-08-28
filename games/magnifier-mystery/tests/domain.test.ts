@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createCrop, getChosung, moveItem, validateImageFile } from "../src/domain/game";
+import { answerFromFileName, createCrop, getChosung, moveItem, validateImageFile } from "../src/domain/game";
 
 describe("magnifier mystery domain", () => {
   it("extracts Korean initial consonants without revealing other answer characters", () => {
@@ -23,6 +23,12 @@ describe("magnifier mystery domain", () => {
     const source = ["a", "b", "c"];
     expect(moveItem(source, 1, -1)).toEqual(["b", "a", "c"]);
     expect(source).toEqual(["a", "b", "c"]);
+  });
+
+  it("uses the file name without its final extension as the editable answer", () => {
+    expect(answerFromFileName("강아지.jpg")).toBe("강아지");
+    expect(answerFromFileName("여름.바다.png")).toBe("여름.바다");
+    expect(answerFromFileName(" 확장자 없는 사진 ")).toBe("확장자 없는 사진");
   });
 
   it("rejects non-image and oversized files", () => {

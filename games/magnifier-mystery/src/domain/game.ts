@@ -50,6 +50,12 @@ export function moveItem<T>(items: T[], index: number, offset: -1 | 1): T[] {
   return next;
 }
 
+export function answerFromFileName(fileName: string): string {
+  const trimmed = fileName.trim();
+  const withoutExtension = trimmed.replace(/\.[^./\\]+$/, "").trim();
+  return withoutExtension || trimmed || "정답 입력";
+}
+
 export const MAX_IMAGE_BYTES = 12 * 1024 * 1024;
 
 export function validateImageFile(file: Pick<File, "type" | "size">): string | null {

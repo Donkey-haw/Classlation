@@ -20,7 +20,33 @@ try {
   });
   const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
   await page.goto(`http://127.0.0.1:${port}`);
-  await page.getByTestId("image-0").setInputFiles({ name: "ball.svg", mimeType: "image/svg+xml", buffer: Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600"><rect width="800" height="600" fill="blue"/><circle cx="400" cy="300" r="150" fill="white"/></svg>') });
+  const blueImage = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600"><rect width="800" height="600" fill="#2456d8"/><circle cx="400" cy="300" r="150" fill="white"/></svg>');
+  const greenImage = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600"><rect width="800" height="600" fill="#1b8b5a"/><path d="M0 500 L400 120 L800 500" fill="#b8e6c9"/></svg>');
+  await page.getByTestId("batch-images").setInputFiles([
+    { name: "강아지.svg", mimeType: "image/svg+xml", buffer: blueImage },
+    { name: "여름.바다.svg", mimeType: "image/svg+xml", buffer: greenImage },
+  ]);
+  await page.getByTestId("question-card-1").waitFor();
+  assert.equal(await page.locator('[data-testid^="question-card-"]').count(), 2);
+  assert.equal(await page.getByTestId("answer-0").inputValue(), "강아지");
+  assert.equal(await page.getByTestId("answer-1").inputValue(), "여름.바다");
+
+  await page.evaluate(() => {
+    const transfer = new DataTransfer();
+    document.querySelector('[data-testid="image-drop-zone"]')?.dispatchEvent(new DragEvent("dragenter", { bubbles: true, cancelable: true, dataTransfer: transfer }));
+  });
+  assert.ok(await page.getByTestId("image-drop-zone").evaluate((element) => element.classList.contains("is-dragging")));
+  await page.evaluate(() => {
+    const data = '<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600"><rect width="800" height="600" fill="#e3a526"/><circle cx="400" cy="240" r="120" fill="#fff4c4"/></svg>';
+    const transfer = new DataTransfer();
+    transfer.items.add(new File([data], "산 정상.svg", { type: "image/svg+xml" }));
+    document.querySelector('[data-testid="image-drop-zone"]')?.dispatchEvent(new DragEvent("drop", { bubbles: true, cancelable: true, dataTransfer: transfer }));
+  });
+  await page.getByTestId("question-card-2").waitFor();
+  assert.equal(await page.getByTestId("answer-2").inputValue(), "산 정상");
+  assert.equal(JSON.parse(await page.evaluate(() => window.render_game_to_text?.())).questionCount, 3);
+  if (process.env.QA_SETUP_SCREENSHOT) await page.screenshot({ path: process.env.QA_SETUP_SCREENSHOT });
+
   await page.getByTestId("answer-0").fill("Apple 2호점");
   await page.getByTestId("start-game").click();
   await page.getByTestId("game-screen").waitFor();
@@ -36,6 +62,10 @@ try {
   if (process.env.QA_HINT_SCREENSHOT) await page.screenshot({ path: process.env.QA_HINT_SCREENSHOT });
   await page.getByTestId("reveal").click();
   await page.getByTestId("revealed").waitFor();
+  await page.getByTestId("next-question").click();
+  await page.getByTestId("reveal").click();
+  await page.getByTestId("next-question").click();
+  await page.getByTestId("reveal").click();
   await page.getByTestId("next-question").click();
   await page.getByTestId("result-screen").waitFor();
   const state = JSON.parse(await page.evaluate(() => window.render_game_to_text?.()));
